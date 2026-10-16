@@ -4,7 +4,7 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { db, UPLOAD_DIR, type Slot, type Streamer } from "@/lib/db";
-import { abs, FEE_PERCENT, IS_PROD, STRIPE_ENABLED } from "@/lib/env";
+import { abs, FEE_PERCENT, FREE_TEST_MODE, IS_PROD, PAYMENT_REQUIRED } from "@/lib/env";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" };
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     .run(slot.id, streamer.id, email, company, link || null, creativeFile, slot.price_cents, fee, slot.minutes * 60, Date.now());
   const bookingId = Number(r.lastInsertRowid);
 
-  if (STRIPE_ENABLED) {
+  if (PAYMENT_REQUIRED) {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -71,8 +71,8 @@ export async function POST(req: Request) {
     return NextResponse.redirect(session.url!, 303);
   }
 
-  // No Stripe keys: dev-only shortcut that marks the booking as paid.
-  if (IS_PROD) return new NextResponse("Payments are not configured", { status: 503 });
+  // No payment taken: dev without Stripe keys, or FREE_TEST_MODE=true. Marks the booking as paid.
+  if (IS_PROD && !FREE_TEST_MODE) return new NextResponse("Payments are not configured", { status: 503 });
   db.prepare("UPDATE bookings SET status = 'pending_approval' WHERE id = ?").run(bookingId);
   return NextResponse.redirect(abs(`/booking/${bookingId}?paid=1`), 303);
 }

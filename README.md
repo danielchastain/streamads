@@ -14,6 +14,10 @@ npm run dev
 Open http://localhost:3000. With no Twitch/Stripe keys set, development mode gives you a username-only login and
 skips payment (bookings are marked paid immediately). These shortcuts are disabled when `NODE_ENV=production`.
 
+**Free testing on a deployed site:** set `FREE_TEST_MODE=true` in the server's environment. Advertisers can then book
+without paying, in production too (bookings go straight to streamer approval, and the booking form says no payment is
+needed). Remove it, and add Stripe keys, to start taking real payments.
+
 Try it: log in → add a slot → open `/<yourname>` in a private window → book it → approve it in the dashboard →
 open the overlay URL in a browser tab and watch the delivered minutes climb.
 

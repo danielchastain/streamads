@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { db, type Booking, type Slot, type Streamer } from "@/lib/db";
-import { STRIPE_ENABLED } from "@/lib/env";
+import { PAYMENT_REQUIRED } from "@/lib/env";
 import AutoRefresh from "../../dashboard/AutoRefresh";
 import PublicNav from "../../public-nav";
 
@@ -55,7 +55,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
         </h1>
         <p className="muted" style={{ margin: "0 0 24px" }}>
           {rejected
-            ? STRIPE_ENABLED
+            ? PAYMENT_REQUIRED
               ? b.refund_id
                 ? "Your refund has been issued for the airtime that wasn't delivered. It can take 5–10 business days to show on your statement."
                 : "Your refund for the airtime that wasn't delivered is being processed."

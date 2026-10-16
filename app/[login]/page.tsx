@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { db, type Slot, type Streamer } from "@/lib/db";
-import { STRIPE_ENABLED } from "@/lib/env";
+import { PAYMENT_REQUIRED } from "@/lib/env";
 import { POSITION_LABEL } from "@/lib/ad-geometry";
 import AdPreview from "../ad-preview";
 import PublicNav from "../public-nav";
@@ -16,7 +16,9 @@ const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
 
 const STEPS = [
   { n: "1", title: "Pick a slot", body: "Choose how many minutes of airtime you want." },
-  { n: "2", title: "Upload your banner and pay", body: "Pay by card. You're only charged once, at checkout." },
+  PAYMENT_REQUIRED
+    ? { n: "2", title: "Upload your banner and pay", body: "Pay by card. You're only charged once, at checkout." }
+    : { n: "2", title: "Upload your banner", body: "No payment needed while we're testing." },
   { n: "3", title: "The streamer reviews it", body: "They check your banner before it goes live." },
   { n: "4", title: "It plays on their stream", body: "Track the minutes delivered on your booking page." },
 ];
@@ -153,16 +155,21 @@ export default async function StreamerPage({
               </div>
 
               <div className="fieldset">
-                <p className="legend"><span className="num">3</span> Review and pay</p>
+                <p className="legend"><span className="num">3</span> {PAYMENT_REQUIRED ? "Review and pay" : "Review and book"}</p>
                 <div className="summary">
                   <div><span>{s.name}</span><span>{s.minutes} min</span></div>
-                  <div className="total"><span>Total today</span><span>{usd(s.price_cents)}</span></div>
+                  <div className="total">
+                    <span>Total today</span>
+                    <span>{PAYMENT_REQUIRED ? usd(s.price_cents) : `${usd(0)} (free test)`}</span>
+                  </div>
                 </div>
-                <button type="submit" className="big-pay">Pay {usd(s.price_cents)}</button>
+                <button type="submit" className="big-pay">
+                  {PAYMENT_REQUIRED ? `Pay ${usd(s.price_cents)}` : "Book (no payment needed)"}
+                </button>
                 <p className="muted small" style={{ margin: "10px 0 0" }}>
-                  {STRIPE_ENABLED
+                  {PAYMENT_REQUIRED
                     ? "Secure checkout by Stripe. We never see your card details. If the streamer declines your banner, you're refunded for any undelivered airtime."
-                    : "Test mode: no payment is taken in this environment."}
+                    : "Test mode: no payment is taken. Your booking goes straight to the streamer for approval."}
                 </p>
               </div>
             </form>
