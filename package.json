@@ -1,0 +1,32 @@
+{
+    "name":  "streamads",
+    "version":  "1.0.0",
+    "description":  "",
+    "scripts":  {
+                    "dev":  "next dev",
+                    "build":  "next build",
+                    "start":  "next start"
+                },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "dependencies":  {
+                         "better-sqlite3":  "^13.0.3",
+                         "next":  "^16.4.2",
+                         "react":  "^19.3.1",
+                         "react-dom":  "^19.3.1",
+                         "stripe":  "^23.0.0"
+                     },
+    "devDependencies":  {
+                            "@types/better-sqlite3":  "^9.6.0",
+                            "@types/node":  "^26.6.5",
+                            "@types/react":  "^19.3.0",
+                            "typescript":  "^7.0.2"
+                        },
+    "allowScripts":  {
+                         "better-sqlite3@13.0.3":  true
+                     },
+    "private":  true
+}
