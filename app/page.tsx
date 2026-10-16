@@ -1,5 +1,6 @@
 import { getStreamer } from "@/lib/auth";
 import { FEE_PERCENT } from "@/lib/env";
+import AdPreview from "./ad-preview";
 
 const ICONS = {
   link: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
@@ -40,8 +41,10 @@ const TILES = [
 
 const FAQ = [
   { q: "What does it cost?", a: `Signing up is free and there's no monthly fee. We keep ${FEE_PERCENT}% of each booking; you receive the rest.` },
+  { q: "Can I set my own prices?", a: "Yes. You decide what every slot costs, from a few dollars to hundreds. Brands pay exactly the price you set." },
+  { q: "Can I choose the ad size and where it appears?", a: "Yes. Pick a preset or type any size up to the full 1920×1080 screen, then choose a corner or the top or bottom center. You can sell several slots, such as a small cheap one and a large premium one." },
   { q: "How do advertisers buy?", a: "They open your bio link, choose a slot, upload a banner and pay by card. They don't need an account." },
-  { q: "What do I need in OBS?", a: "One Browser Source with your private overlay URL. Ads appear in the bottom-left corner of your scene." },
+  { q: "What do I need in OBS?", a: "One Browser Source with your private overlay URL, set to 1920×1080. Each ad appears at the size and position you chose for its slot." },
   { q: "Can I turn an ad down?", a: "Yes. Every booking waits for your approval, and you can reject one at any time." },
   { q: "How do I get paid?", a: "You connect a Stripe account from your dashboard. When a booking's airtime is delivered, your share is transferred to it." },
 ];
@@ -81,8 +84,8 @@ export default async function Home() {
             Sell ad space on your stream. <span className="grad">On autopilot.</span>
           </h1>
           <p className="lede">
-            One link in your Twitch bio. Brands book and pay for airtime, you approve the banner, and it plays on your
-            stream automatically.
+            You set the price, the ad size and where it appears. Put one link in your Twitch bio, brands book and pay,
+            you approve the banner, and it plays on your stream automatically.
           </p>
           <div className="cta-row">
             {cta}
@@ -126,8 +129,8 @@ export default async function Home() {
       <div className="facts">
         <div className="fact"><b>{100 - FEE_PERCENT}%</b><span>of every booking is yours</span></div>
         <div className="fact"><b>$0</b><span>monthly fee</span></div>
-        <div className="fact"><b>1 link</b><span>in your Twitch bio</span></div>
-        <div className="fact"><b>1 source</b><span>in OBS, set up once</span></div>
+        <div className="fact"><b>Your price</b><span>charge whatever you want</span></div>
+        <div className="fact"><b>Any size</b><span>up to a full 1920×1080 screen</span></div>
       </div>
 
       <section id="how" className="section">
@@ -144,6 +147,65 @@ export default async function Home() {
             </li>
           ))}
         </ol>
+      </section>
+
+      <section id="control" className="section">
+        <p className="kicker">// you set the rules</p>
+        <h2>Your stream, your prices, your ad sizes</h2>
+        <p className="sub">Every ad slot is yours to design. Nothing about it is fixed by us.</p>
+        <div className="split control">
+          <div className="rules">
+            <div className="rule">
+              <b>$</b>
+              <div>
+                <strong>Charge what you want</strong>
+                <p>Set the price for each slot, $5 or $500. Brands pay exactly that, and you keep {100 - FEE_PERCENT}%.</p>
+              </div>
+            </div>
+            <div className="rule">
+              <b>⇔</b>
+              <div>
+                <strong>Control the ad size</strong>
+                <p>Pick a preset or type any size up to a full 1920×1080 screen. Sell a small banner cheap and a big one for more.</p>
+              </div>
+            </div>
+            <div className="rule">
+              <b>◰</b>
+              <div>
+                <strong>Choose where it appears</strong>
+                <p>Any corner, or top or bottom center. You see a live preview on your own stream layout.</p>
+              </div>
+            </div>
+            <div className="rule">
+              <b>⏱</b>
+              <div>
+                <strong>Decide how long it runs</strong>
+                <p>You choose how many minutes each slot covers. When the minutes are used up, the ad stops.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="slot-mock" aria-hidden="true">
+            <div className="slot-mock-head">
+              <span className="muted small">Your ad slot</span>
+              <span className="pill">example</span>
+            </div>
+            <dl>
+              <div><dt>Name</dt><dd>Corner banner</dd></div>
+              <div><dt>Price</dt><dd className="hl">$25.00</dd></div>
+              <div><dt>Airtime</dt><dd>30 minutes</dd></div>
+              <div><dt>Size</dt><dd>480 × 160 px</dd></div>
+              <div><dt>Position</dt><dd>Bottom left</dd></div>
+            </dl>
+            <div className="chips" style={{ margin: "4px 0 12px" }}>
+              <span className="chip">Small <small>300×100</small></span>
+              <span className="chip on">Medium <small>480×160</small></span>
+              <span className="chip">Large <small>720×240</small></span>
+              <span className="chip">Custom</span>
+            </div>
+            <AdPreview width={480} height={160} position="bottom-left" label="Sponsor" />
+          </div>
+        </div>
       </section>
 
       <section className="section">

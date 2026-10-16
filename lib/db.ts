@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import type { Position } from "./ad-geometry";
 
 // On a host, point DATA_DIR at a persistent volume (e.g. /data) so the database and uploads survive redeploys.
 export const DATA_DIR = process.env.DATA_DIR ?? path.join(/*turbopackIgnore: true*/ process.cwd(), "data");
@@ -25,7 +26,13 @@ export type Slot = {
   price_cents: number;
   minutes: number;
   active: number;
+  width: number;
+  height: number;
+  position: Position;
 };
+
+export { POSITIONS, MAX_AD_WIDTH, MAX_AD_HEIGHT } from "./ad-geometry";
+export type { Position } from "./ad-geometry";
 
 export type BookingStatus =
   | "pending_payment"
@@ -110,6 +117,9 @@ function init(): Database.Database {
   addColumn(db, "bookings", "payout_status", "TEXT");
   addColumn(db, "bookings", "transfer_id", "TEXT");
   addColumn(db, "bookings", "refund_id", "TEXT");
+  addColumn(db, "slots", "width", "INTEGER NOT NULL DEFAULT 420");
+  addColumn(db, "slots", "height", "INTEGER NOT NULL DEFAULT 140");
+  addColumn(db, "slots", "position", "TEXT NOT NULL DEFAULT 'bottom-left'");
   return db;
 }
 

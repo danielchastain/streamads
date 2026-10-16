@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { db, type Slot, type Streamer } from "@/lib/db";
 import { STRIPE_ENABLED } from "@/lib/env";
+import { POSITION_LABEL } from "@/lib/ad-geometry";
+import AdPreview from "../ad-preview";
 import PublicNav from "../public-nav";
 
 const ERRORS: Record<string, string> = {
@@ -22,7 +24,7 @@ const STEPS = [
 const FAQ = [
   {
     q: "What size should my banner be?",
-    a: "It's shown in the bottom-left corner of the stream at up to 420×140 px. A wide image around 840×280 px (3:1) works best. PNG, JPG, GIF or WebP, up to 2 MB.",
+    a: "Each slot lists its exact size and where it appears on the stream. Upload an image in that size, or one with the same proportions. Larger images are scaled down to fit. PNG, JPG, GIF or WebP, up to 2 MB.",
   },
   {
     q: "When does my ad run?",
@@ -104,7 +106,8 @@ export default async function StreamerPage({
               <span className="slot-main">
                 <b>{s.name}</b>
                 <small>
-                  {s.minutes} minutes on stream · {usd(Math.round(s.price_cents / s.minutes))} per minute
+                  {s.minutes} minutes on stream · {s.width}×{s.height} px, {POSITION_LABEL[s.position]} ·{" "}
+                  {usd(Math.round(s.price_cents / s.minutes))} per minute
                 </small>
               </span>
               <span className="slot-price">{usd(s.price_cents)}</span>
@@ -137,9 +140,16 @@ export default async function StreamerPage({
                   Upload an image (PNG, JPG, GIF or WebP, max 2 MB)
                   <input name="creative" type="file" accept="image/png,image/jpeg,image/gif,image/webp" required />
                 </label>
-                <p className="muted small" style={{ margin: 0 }}>
-                  Shown at up to 420×140 px in the corner of the stream. A wide 3:1 image like 840×280 px works best.
-                </p>
+                <div className="size-note">
+                  <div className="size-prev">
+                    <AdPreview width={s.width} height={s.height} position={s.position} label="Your banner" />
+                  </div>
+                  <p className="muted small" style={{ margin: 0 }}>
+                    This slot is <strong style={{ color: "var(--text)" }}>{s.width}×{s.height} px</strong>, shown in the{" "}
+                    {POSITION_LABEL[s.position]} of the stream. Upload an image that size, or one with the same
+                    proportions, so nothing gets cropped or squashed.
+                  </p>
+                </div>
               </div>
 
               <div className="fieldset">

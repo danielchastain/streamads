@@ -5,6 +5,8 @@ import { abs, FEE_PERCENT, IS_PROD, STRIPE_ENABLED } from "@/lib/env";
 import { refreshConnectStatus } from "@/lib/payouts";
 import AutoRefresh from "./AutoRefresh";
 import CopyField from "./CopyField";
+import SlotForm from "./SlotForm";
+import { POSITION_LABEL } from "@/lib/ad-geometry";
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
 const mins = (s: number) => Math.round(s / 60);
@@ -172,16 +174,19 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </summary>
           <div className="step-body">
             <p className="muted">
-              An <strong>ad slot</strong> is a product brands can buy: a banner on your stream for a set number of
-              minutes, at a set price. For example, <em>&ldquo;Corner banner, 30 minutes, $25&rdquo;</em>. The banner is
-              shown whenever you&apos;re live until the minutes are used up. You can add as many slots as you like.
+              An <strong>ad slot</strong> is a product brands can buy. <strong>You choose everything about it:</strong>{" "}
+              the price, how many minutes it runs, how big the ad is, and where on your stream it appears. For example,{" "}
+              <em>&ldquo;Corner banner, 30 minutes, $25, 480×160 in the bottom left&rdquo;</em>. The banner is shown
+              whenever you&apos;re live until the minutes are used up. Add as many slots as you like, such as a small
+              cheap one and a large premium one.
             </p>
             {slots.map((s) => (
               <div className="slot" key={s.id}>
                 <div>
                   <strong>{s.name}</strong>
                   <span className="muted small">
-                    {" "}· {s.minutes} min · {usd(Math.round(s.price_cents / s.minutes))}/min
+                    {" "}· {s.minutes} min · {s.width}×{s.height}px, {POSITION_LABEL[s.position]} ·{" "}
+                    {usd(Math.round(s.price_cents / s.minutes))}/min
                   </span>
                 </div>
                 <div className="row" style={{ gap: 14 }}>
@@ -194,21 +199,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                 </div>
               </div>
             ))}
-            <form className="slot-form" method="post" action="/api/dashboard/slot">
-              <label>
-                Name
-                <input name="name" placeholder="Corner banner" required maxLength={80} />
-              </label>
-              <label>
-                Price (USD)
-                <input name="price" type="number" min="1" step="0.01" placeholder="25" required />
-              </label>
-              <label>
-                Minutes on stream
-                <input name="minutes" type="number" min="1" step="1" placeholder="30" required />
-              </label>
-              <button type="submit">Add slot</button>
-            </form>
+            <h3 className="sb-title">Add a slot</h3>
+            <SlotForm />
           </div>
         </details>
 
@@ -224,7 +216,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <div className="step-body">
             <p className="muted">
               The overlay is a transparent web page that displays whichever ad is booked. You add it to OBS once and
-              never touch it again. Ads appear in the bottom-left corner of your scene.
+              never touch it again. Each ad appears at the size and position you chose for its slot.
             </p>
             <ol className="howto">
               <li>In OBS, under <strong>Sources</strong>, click <strong>+</strong> and choose <strong>Browser</strong>.</li>

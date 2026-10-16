@@ -41,12 +41,26 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
   // Rotate: show the approved booking with the least airtime so far.
   const next = db
     .prepare(
-      "SELECT * FROM bookings WHERE streamer_id = ? AND status = 'approved' ORDER BY seconds_delivered ASC, id ASC LIMIT 1",
+      `SELECT b.*, s.width AS slot_width, s.height AS slot_height, s.position AS slot_position
+       FROM bookings b JOIN slots s ON s.id = b.slot_id
+       WHERE b.streamer_id = ? AND b.status = 'approved'
+       ORDER BY b.seconds_delivered ASC, b.id ASC LIMIT 1`,
     )
-    .get(streamer.id) as Booking | undefined;
+    .get(streamer.id) as (Booking & { slot_width: number; slot_height: number; slot_position: string }) | undefined;
 
   return NextResponse.json(
-    { ad: next ? { id: next.id, image: `/api/creative/${next.creative_file}`, company: next.company } : null },
+    {
+      ad: next
+        ? {
+            id: next.id,
+            image: `/api/creative/${next.creative_file}`,
+            company: next.company,
+            width: next.slot_width,
+            height: next.slot_height,
+            position: next.slot_position,
+          }
+        : null,
+    },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
