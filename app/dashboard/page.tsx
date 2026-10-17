@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isAdminLogin } from "@/lib/admin";
 import { getStreamer } from "@/lib/auth";
 import { db, type Booking, type Slot } from "@/lib/db";
 import { abs, FEE_PERCENT, IS_PROD, STRIPE_ENABLED } from "@/lib/env";
@@ -114,6 +115,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <i /><strong>StreamAds</strong>
         </a>
         <nav>
+          {isAdminLogin(streamer.login) && <a href="/admin">Admin</a>}
           <a href={`/${streamer.login}`} target="_blank" rel="noreferrer">View my ad page</a>
           <form method="post" action="/api/auth/logout"><button className="ghost sm">Log out</button></form>
         </nav>

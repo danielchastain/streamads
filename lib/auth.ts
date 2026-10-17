@@ -38,7 +38,9 @@ export async function getStreamer(): Promise<Streamer | null> {
   const jar = await cookies();
   const id = parseSession(jar.get(SESSION_COOKIE)?.value);
   if (id === null) return null;
-  return (db.prepare("SELECT * FROM streamers WHERE id = ?").get(id) as Streamer | undefined) ?? null;
+  const streamer = db.prepare("SELECT * FROM streamers WHERE id = ?").get(id) as Streamer | undefined;
+  if (!streamer || streamer.disabled) return null; // accounts disabled by an admin are treated as logged out
+  return streamer;
 }
 
 export const newToken = (bytes = 24) => randomBytes(bytes).toString("base64url");

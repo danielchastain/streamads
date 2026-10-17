@@ -11,6 +11,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
   const { token } = await ctx.params;
   const streamer = db.prepare("SELECT * FROM streamers WHERE overlay_token = ?").get(token) as Streamer | undefined;
   if (!streamer) return new NextResponse("Not found", { status: 404 });
+  // Disabled by an admin: show nothing and credit nothing.
+  if (streamer.disabled) return NextResponse.json({ ad: null }, { headers: { "Cache-Control": "no-store" } });
 
   const body = (await req.json().catch(() => ({}))) as { showing?: number | null };
   const now = Date.now();

@@ -52,7 +52,7 @@ export default async function StreamerPage({
   const { login } = await params;
   const { error } = await searchParams;
   const streamer = db.prepare("SELECT * FROM streamers WHERE login = ?").get(login.toLowerCase()) as Streamer | undefined;
-  if (!streamer) notFound();
+  if (!streamer || streamer.disabled) notFound();
   const slots = db.prepare("SELECT * FROM slots WHERE streamer_id = ? AND active = 1 ORDER BY price_cents").all(streamer.id) as Slot[];
 
   return (

@@ -16,6 +16,7 @@ export type Streamer = {
   overlay_token: string;
   stripe_account_id: string | null;
   payouts_enabled: number;
+  disabled: number;
   created_at: number;
 };
 
@@ -113,6 +114,7 @@ function init(): Database.Database {
     );
   `);
   addColumn(db, "streamers", "payouts_enabled", "INTEGER NOT NULL DEFAULT 0");
+  addColumn(db, "streamers", "disabled", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "bookings", "payment_intent", "TEXT");
   addColumn(db, "bookings", "payout_status", "TEXT");
   addColumn(db, "bookings", "transfer_id", "TEXT");

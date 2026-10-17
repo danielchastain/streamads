@@ -8,6 +8,12 @@ export const FREE_TEST_MODE = process.env.FREE_TEST_MODE === "true";
 export const PAYMENT_REQUIRED = STRIPE_ENABLED && !FREE_TEST_MODE;
 export const FEE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENT ?? 15);
 
+/** Twitch logins allowed into /admin (comma-separated, case-insensitive). Empty = nobody, so /admin is locked. */
+export const ADMIN_LOGINS = (process.env.ADMIN_LOGINS ?? "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
 export const abs = (path: string) => `${APP_URL}${path}`;
 
 export function sessionSecret(): string {

@@ -18,6 +18,7 @@ export async function POST(req: Request) {
   const slot = db.prepare("SELECT * FROM slots WHERE id = ? AND active = 1").get(Number(form.get("slot_id"))) as Slot | undefined;
   if (!slot) return NextResponse.redirect(abs("/"), 303);
   const streamer = db.prepare("SELECT * FROM streamers WHERE id = ?").get(slot.streamer_id) as Streamer;
+  if (streamer.disabled) return NextResponse.redirect(abs("/"), 303);
 
   const email = String(form.get("email") ?? "").trim();
   const company = String(form.get("company") ?? "").trim().slice(0, 80);
