@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { db, type Booking, type Streamer } from "./db";
-import { abs, STRIPE_ENABLED } from "./env";
+import { abs, PAYOUT_HOLD_HOURS, STRIPE_ENABLED } from "./env";
 
 export const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -63,14 +63,17 @@ export async function refundBooking(b: Booking): Promise<void> {
  */
 export async function settlePayouts(streamerId?: number): Promise<void> {
   if (!STRIPE_ENABLED) return;
+  // Only bookings past their hold (completed_at + PAYOUT_HOLD_HOURS) that no admin is holding.
+  const dueBefore = Date.now() - PAYOUT_HOLD_HOURS * 3_600_000;
   const rows = db
     .prepare(
       `SELECT b.*, s.stripe_account_id AS account FROM bookings b JOIN streamers s ON s.id = b.streamer_id
        WHERE b.status = 'completed' AND (b.payout_status IS NULL OR b.payout_status = 'failed')
          AND s.payouts_enabled = 1 AND s.stripe_account_id IS NOT NULL AND b.payment_intent IS NOT NULL
+         AND b.payout_hold = 0 AND (b.completed_at IS NULL OR b.completed_at <= ?)
          ${streamerId ? "AND b.streamer_id = ?" : ""}`,
     )
-    .all(...(streamerId ? [streamerId] : [])) as (Booking & { account: string })[];
+    .all(dueBefore, ...(streamerId ? [streamerId] : [])) as (Booking & { account: string })[];
 
   const stripe = getStripe();
   for (const b of rows) {
@@ -101,4 +104,30 @@ export async function settlePayouts(streamerId?: number): Promise<void> {
       db.prepare("UPDATE bookings SET payout_status = 'failed' WHERE id = ?").run(b.id);
     }
   }
+}
+
+let lastSweep = 0;
+
+/**
+ * Held payouts have no event that releases them, so the overlay heartbeat calls this; at most once every
+ * 10 minutes it pays anything whose hold has run out (for any streamer).
+ */
+export function maybeSweepPayouts(): void {
+  const now = Date.now();
+  if (!STRIPE_ENABLED || now - lastSweep < 600_000) return;
+  lastSweep = now;
+  void settlePayouts().catch((err) => console.error("sweepPayouts:", err));
+}
+
+/** Short text about where a completed booking's payout stands, for dashboards. */
+export function payoutNote(b: Booking, payoutsEnabled: boolean): string {
+  if (b.payout_status === "paid") return "paid out";
+  if (b.payout_status === "processing") return "paying out…";
+  if (b.payout_status === "failed") return "payout failed, will retry";
+  if (b.payout_hold) return "payout on hold (under review)";
+  const releaseAt = (b.completed_at ?? 0) + PAYOUT_HOLD_HOURS * 3_600_000;
+  if (releaseAt > Date.now()) {
+    return `payout releases ${new Date(releaseAt).toLocaleDateString("en-US", { dateStyle: "medium" })}`;
+  }
+  return payoutsEnabled ? "payout queued" : "waiting for payout setup";
 }

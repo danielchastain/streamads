@@ -8,6 +8,20 @@ export const FREE_TEST_MODE = process.env.FREE_TEST_MODE === "true";
 export const PAYMENT_REQUIRED = STRIPE_ENABLED && !FREE_TEST_MODE;
 export const FEE_PERCENT = Number(process.env.PLATFORM_FEE_PERCENT ?? 15);
 
+/**
+ * Airtime is only credited while the streamer is live on Twitch (REQUIRE_LIVE) and their stream is being saved
+ * as a VOD (REQUIRE_VOD). On by default whenever real payments are on; off in FREE_TEST_MODE so you can test
+ * without streaming. Set STREAM_CHECKS=true/false to override. When off, the checks still run and show on the
+ * dashboard and admin page; they just don't block credit.
+ */
+export const STREAM_CHECKS = process.env.STREAM_CHECKS ? process.env.STREAM_CHECKS === "true" : !FREE_TEST_MODE;
+export const REQUIRE_LIVE = process.env.REQUIRE_LIVE !== "false";
+export const REQUIRE_VOD = process.env.REQUIRE_VOD !== "false";
+
+/** Hours a finished booking's payout is held before it is sent to the streamer (time to spot cheating). */
+const holdHours = Number(process.env.PAYOUT_HOLD_HOURS ?? 48);
+export const PAYOUT_HOLD_HOURS = Number.isFinite(holdHours) && holdHours >= 0 ? holdHours : 48;
+
 /** Twitch logins allowed into /admin (comma-separated, case-insensitive). Empty = nobody, so /admin is locked. */
 export const ADMIN_LOGINS = (process.env.ADMIN_LOGINS ?? "")
   .split(",")

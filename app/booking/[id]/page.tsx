@@ -1,10 +1,25 @@
 import { notFound } from "next/navigation";
-import { db, type Booking, type Slot, type Streamer } from "@/lib/db";
+import { db, type Booking, type Proof, type Slot, type Streamer } from "@/lib/db";
 import { PAYMENT_REQUIRED } from "@/lib/env";
 import AutoRefresh from "../../dashboard/AutoRefresh";
 import PublicNav from "../../public-nav";
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
+
+// "1h02m05s": Twitch's format for a start time in a VOD link, also readable for people.
+function vodTime(s: number) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `${h}h${String(m).padStart(2, "0")}m${String(s % 60).padStart(2, "0")}s`;
+}
+
+function ago(ms: number) {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 90) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} d ago`;
+}
 
 type Stage = { label: string; hint: string };
 const STAGES: Stage[] = [
@@ -36,6 +51,10 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
   if (!b) notFound();
   const s = db.prepare("SELECT * FROM streamers WHERE id = ?").get(b.streamer_id) as Streamer;
   const slot = db.prepare("SELECT * FROM slots WHERE id = ?").get(b.slot_id) as Slot;
+
+  const proofs = db
+    .prepare("SELECT * FROM booking_proofs WHERE booking_id = ? ORDER BY last_at DESC LIMIT 10")
+    .all(b.id) as Proof[];
 
   const stage = stageIndex(b);
   const rejected = b.status === "rejected";
@@ -96,6 +115,38 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
         </section>
+
+        {(b.last_credited_at || proofs.length > 0) && (
+          <section className="card">
+            <p style={{ margin: 0 }}>
+              <strong>Proof it aired</strong>
+              {b.last_credited_at && <span className="muted small"> · last on air {ago(b.last_credited_at)}</span>}
+            </p>
+            {proofs.length > 0 ? (
+              <>
+                <p className="muted small" style={{ margin: "4px 0 8px" }}>
+                  Airtime is only counted while the streamer is live on Twitch and saving the stream. Watch the recording
+                  from the moment your banner first appeared:
+                </p>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {proofs.map((p) => (
+                    <li key={p.vod_id} className="small">
+                      <a href={`https://www.twitch.tv/videos/${p.vod_id}?t=${vodTime(p.offset_s)}`} target="_blank" rel="noreferrer noopener">
+                        Stream recording from {vodTime(p.offset_s)}
+                      </a>
+                      <span className="muted"> · {Math.round(p.seconds / 60)} min counted</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="muted small" style={{ margin: "8px 0 0" }}>
+                  Twitch keeps recordings for a limited time, so check soon after your ad airs.
+                </p>
+              </>
+            ) : (
+              <p className="muted small" style={{ margin: "4px 0 0" }}>Recording links appear here once your ad has aired.</p>
+            )}
+          </section>
+        )}
 
         <section className="card receipt">
           <div><span>Amount</span><span>{usd(b.price_cents)}</span></div>

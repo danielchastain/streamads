@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdmin } from "@/lib/admin";
 import { db, type Booking } from "@/lib/db";
 import { abs, APP_URL } from "@/lib/env";
-import { refundBooking } from "@/lib/payouts";
+import { refundBooking, settlePayouts } from "@/lib/payouts";
 
 const notFound = () => new NextResponse("Not found", { status: 404 });
 
@@ -32,6 +32,20 @@ export async function POST(req: Request) {
     if (b) {
       db.prepare("UPDATE bookings SET status = 'rejected' WHERE id = ?").run(b.id);
       await refundBooking(b);
+    }
+  } else if (intent === "hold_payout") {
+    // Pause a finished booking's payout while you look into it (nothing happens once it's already paid).
+    db.prepare(
+      "UPDATE bookings SET payout_hold = 1 WHERE id = ? AND status = 'completed' AND (payout_status IS NULL OR payout_status = 'failed')",
+    ).run(id);
+  } else if (intent === "release_payout") {
+    // Lift a hold and skip the waiting period; the payout goes out now if the streamer's Stripe account is ready.
+    const b = db.prepare("SELECT streamer_id FROM bookings WHERE id = ? AND status = 'completed'").get(id) as
+      | { streamer_id: number }
+      | undefined;
+    if (b) {
+      db.prepare("UPDATE bookings SET payout_hold = 0, completed_at = 0 WHERE id = ?").run(id);
+      await settlePayouts(b.streamer_id).catch((err) => console.error("release payout:", err));
     }
   }
   return NextResponse.redirect(abs("/admin"), 303);

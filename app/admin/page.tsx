@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { getAdmin } from "@/lib/admin";
-import { db } from "@/lib/db";
-import { FEE_PERCENT, FREE_TEST_MODE } from "@/lib/env";
+import { db, type Booking, type Proof } from "@/lib/db";
+import { FEE_PERCENT, FREE_TEST_MODE, PAYOUT_HOLD_HOURS, STREAM_CHECKS } from "@/lib/env";
+import { payoutNote } from "@/lib/payouts";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Admin", robots: { index: false, follow: false } };
@@ -30,21 +31,15 @@ type StreamerRow = {
   booking_count: number;
   earned: number | null;
   last_beat_at: number | null;
+  tw_live: number | null;
+  tw_vod: number | null;
+  tw_checked_at: number | null;
 };
 
-type BookingRow = {
-  id: number;
-  login: string;
-  company: string;
-  advertiser_email: string;
-  status: string;
-  price_cents: number;
-  fee_cents: number;
-  seconds_total: number;
-  seconds_delivered: number;
-  payout_status: string | null;
-  created_at: number;
-};
+type BookingRow = Booking & { login: string; payouts_enabled: number };
+
+const vodTime = (s: number) =>
+  `${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m${String(s % 60).padStart(2, "0")}s`;
 
 export default async function Admin() {
   const admin = await getAdmin();
@@ -56,7 +51,7 @@ export default async function Admin() {
          (SELECT COUNT(*) FROM slots WHERE streamer_id = s.id AND active = 1) AS slot_count,
          (SELECT COUNT(*) FROM bookings WHERE streamer_id = s.id AND status != 'pending_payment') AS booking_count,
          (SELECT SUM(price_cents - fee_cents) FROM bookings WHERE streamer_id = s.id AND status = 'completed') AS earned,
-         o.last_beat_at
+         o.last_beat_at, o.tw_live, o.tw_vod, o.tw_checked_at
        FROM streamers s LEFT JOIN overlay_state o ON o.streamer_id = s.id
        ORDER BY s.created_at DESC`,
     )
@@ -64,13 +59,22 @@ export default async function Admin() {
 
   const bookings = db
     .prepare(
-      `SELECT b.id, s.login, b.company, b.advertiser_email, b.status, b.price_cents, b.fee_cents,
-         b.seconds_total, b.seconds_delivered, b.payout_status, b.created_at
+      `SELECT b.*, s.login, s.payouts_enabled
        FROM bookings b JOIN streamers s ON s.id = b.streamer_id
        WHERE b.status != 'pending_payment'
        ORDER BY b.id DESC LIMIT 200`,
     )
     .all() as BookingRow[];
+
+  // VOD proof for the bookings on this page, grouped by booking.
+  const proofsByBooking = new Map<number, Proof[]>();
+  if (bookings.length > 0) {
+    const ids = bookings.map((b) => b.id);
+    const rows = db
+      .prepare(`SELECT * FROM booking_proofs WHERE booking_id IN (${ids.map(() => "?").join(",")}) ORDER BY last_at DESC`)
+      .all(...ids) as Proof[];
+    for (const p of rows) proofsByBooking.set(p.booking_id, [...(proofsByBooking.get(p.booking_id) ?? []), p]);
+  }
 
   const totals = db
     .prepare(
@@ -108,6 +112,10 @@ export default async function Admin() {
         {FREE_TEST_MODE && (
           <div className="flash">Free test mode is ON: bookings skip payment, so the money figures below are test data.</div>
         )}
+        <p className="muted small" style={{ margin: "0 0 12px" }}>
+          Airtime checks: {STREAM_CHECKS ? "ON (airtime counts only while live with VODs on)" : "recording only, not blocking"}. Payouts are
+          held {PAYOUT_HOLD_HOURS} h after a booking completes.
+        </p>
 
         <div className="stats">
           <div><b>{activeStreamers.length}</b><span>streamers{disabledStreamers.length ? ` (+${disabledStreamers.length} disabled)` : ""}</span></div>
@@ -126,7 +134,7 @@ export default async function Admin() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Streamer</th><th>Joined</th><th>Overlay</th><th>Slots</th><th>Bookings</th><th>Earned</th><th>Payouts</th><th></th>
+                <th>Streamer</th><th>Joined</th><th>Overlay</th><th>Twitch</th><th>Slots</th><th>Bookings</th><th>Earned</th><th>Payouts</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -140,6 +148,19 @@ export default async function Admin() {
                     </td>
                     <td>{when(s.created_at)}</td>
                     <td>{live ? <span className="status done">● live</span> : <span className="muted">{ago(s.last_beat_at)}</span>}</td>
+                    <td>
+                      {s.tw_checked_at && Date.now() - s.tw_checked_at < 3 * 60_000 ? (
+                        s.tw_live ? (
+                          <span className={s.tw_vod === 0 ? "status todo" : "status done"}>
+                            live · {s.tw_vod === 0 ? "NO VOD" : s.tw_vod === 1 ? "VOD on" : "VOD pending"}
+                          </span>
+                        ) : (
+                          <span className="muted">not live</span>
+                        )
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td>{s.slot_count}</td>
                     <td>{s.booking_count}</td>
                     <td>{usd(s.earned ?? 0)}</td>
@@ -159,7 +180,7 @@ export default async function Admin() {
                   </tr>
                 );
               })}
-              {streamers.length === 0 && <tr><td colSpan={8} className="muted">No streamers yet.</td></tr>}
+              {streamers.length === 0 && <tr><td colSpan={9} className="muted">No streamers yet.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -173,7 +194,7 @@ export default async function Admin() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>#</th><th>Created</th><th>Streamer</th><th>Advertiser</th><th>Status</th><th>Price</th><th>Aired</th><th></th>
+                <th>#</th><th>Created</th><th>Streamer</th><th>Advertiser</th><th>Status</th><th>Price</th><th>Aired / proof</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -189,11 +210,24 @@ export default async function Admin() {
                   <td>
                     <span className="pill">{b.status.replace("_", " ")}</span>
                     {b.status === "completed" && (
-                      <div className="muted small">{b.payout_status ?? "payout waiting"}</div>
+                      <div className="muted small">{payoutNote(b, !!b.payouts_enabled)}</div>
                     )}
                   </td>
                   <td>{usd(b.price_cents)}</td>
-                  <td>{mins(b.seconds_delivered)} / {mins(b.seconds_total)} min</td>
+                  <td>
+                    {mins(b.seconds_delivered)} / {mins(b.seconds_total)} min
+                    {(proofsByBooking.get(b.id) ?? []).slice(0, 3).map((p) => (
+                      <div key={p.vod_id} className="small">
+                        <a href={`https://www.twitch.tv/videos/${p.vod_id}?t=${vodTime(p.offset_s)}`} target="_blank" rel="noreferrer noopener">
+                          VOD {vodTime(p.offset_s)}
+                        </a>
+                        <span className="muted"> · {Math.round(p.seconds / 60)} min</span>
+                      </div>
+                    ))}
+                    {b.status !== "pending_approval" && b.seconds_delivered > 0 && !proofsByBooking.has(b.id) && (
+                      <div className="muted small">no VOD proof recorded</div>
+                    )}
+                  </td>
                   <td>
                     {(b.status === "pending_approval" || b.status === "approved") && (
                       <form method="post" action="/api/admin/action">
@@ -201,11 +235,23 @@ export default async function Admin() {
                         <button name="intent" value="reject_booking" className="danger sm">Reject{FREE_TEST_MODE ? "" : " + refund"}</button>
                       </form>
                     )}
+                    {b.status === "completed" && b.payout_status !== "paid" && b.payout_status !== "processing" && (
+                      <form method="post" action="/api/admin/action">
+                        <input type="hidden" name="id" value={b.id} />
+                        {b.payout_hold ? (
+                          <button name="intent" value="release_payout" className="ghost sm">Release payout</button>
+                        ) : (
+                          <>
+                            <button name="intent" value="hold_payout" className="danger sm">Hold payout</button>{" "}
+                            <button name="intent" value="release_payout" className="ghost sm">Release now</button>
+                          </>
+                        )}
+                      </form>
+                    )}
                   </td>
                 </tr>
               ))}
-              {bookings.length === 0 && <tr><td colSpan={8} className="muted">No bookings yet.</td></tr>}
-            </tbody>
+              {bookings.length === 0 && <tr><td colSpan={8} className="muted">No bookings yet.</td></tr>}            </tbody>
           </table>
         </div>
       </div>

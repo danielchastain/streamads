@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { isAdminLogin } from "@/lib/admin";
 import { getStreamer } from "@/lib/auth";
 import { db, type Booking, type Slot } from "@/lib/db";
-import { abs, FEE_PERCENT, IS_PROD, STRIPE_ENABLED } from "@/lib/env";
-import { refreshConnectStatus } from "@/lib/payouts";
+import { abs, FEE_PERCENT, IS_PROD, STREAM_CHECKS, STRIPE_ENABLED } from "@/lib/env";
+import { payoutNote, refreshConnectStatus } from "@/lib/payouts";
 import AutoRefresh from "./AutoRefresh";
 import CopyField from "./CopyField";
 import SlotForm from "./SlotForm";
@@ -18,7 +18,6 @@ const CONNECT_MSG: Record<string, string> = {
     : "Stripe keys aren't set on this server yet. Add STRIPE_SECRET_KEY to .env.local and restart to turn payouts on.",
   error: "We couldn't start Stripe setup. Please try again in a moment.",
 };
-const PAYOUT_LABEL: Record<string, string> = { processing: "paying out…", paid: "paid out", failed: "payout failed, will retry" };
 
 function Status({ done }: { done: boolean }) {
   return <span className={`status ${done ? "done" : "todo"}`}>{done ? "Done" : "To do"}</span>;
@@ -45,11 +44,16 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     }
   }
 
-  const beat = db.prepare("SELECT last_beat_at FROM overlay_state WHERE streamer_id = ?").get(streamer.id) as
-    | { last_beat_at: number }
+  const beat = db.prepare("SELECT * FROM overlay_state WHERE streamer_id = ?").get(streamer.id) as
+    | { last_beat_at: number; tw_live: number | null; tw_vod: number | null; tw_checked_at: number | null }
     | undefined;
   const overlayLive = !!beat && Date.now() - beat.last_beat_at < 30_000;
   const overlaySeen = !!beat;
+  // What Twitch said at the last check (only fresh while the overlay is running).
+  const twFresh = !!beat?.tw_checked_at && Date.now() - beat.tw_checked_at < 3 * 60_000;
+  const twNotLive = twFresh && beat!.tw_live === 0;
+  const twNoVod = twFresh && beat!.tw_live === 1 && beat!.tw_vod === 0;
+  const twGood = twFresh && beat!.tw_live === 1 && beat!.tw_vod !== 0;
 
   const hasSlots = slots.length > 0;
   const payoutsOn = !!streamer.payouts_enabled;
@@ -71,7 +75,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <strong>{b.company}</strong>
         <span className="pill">
           {b.status.replace("_", " ")}
-          {b.status === "completed" && ` · ${b.payout_status ? PAYOUT_LABEL[b.payout_status] : "waiting for payout setup"}`}
+          {b.status === "completed" && ` · ${payoutNote(b, !!streamer.payouts_enabled)}`}
         </span>
       </div>
       <div className="booking-body">
@@ -235,6 +239,24 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                 : overlaySeen
                   ? "Your overlay was connected before but isn't loading right now."
                   : "Waiting for your overlay to connect…"}
+            </p>
+            {twFresh && (
+              <p className={`overlay-state ${twGood || !STREAM_CHECKS ? "live" : ""}`}>
+                {twNotLive &&
+                  (STREAM_CHECKS
+                    ? "You're not live on Twitch right now. Ads only earn airtime while you're live."
+                    : "You're not live on Twitch. (Test mode: airtime still counts, but once real payments are on it only counts while you're live.)")}
+                {twNoVod &&
+                  (STREAM_CHECKS
+                    ? "You're live but Twitch isn't saving this stream as a VOD, so airtime isn't counting. Turn on Settings → Stream → Store past broadcasts."
+                    : "You're live but Twitch isn't saving a VOD. Turn on Settings → Stream → Store past broadcasts; once real payments are on, airtime only counts with VODs on.")}
+                {twGood && "● Live on Twitch with VODs on. Your airtime is counting."}
+                {twFresh && beat!.tw_live === 1 && beat!.tw_vod === null && "● Live on Twitch. Checking that your VOD is being saved…"}
+              </p>
+            )}
+            <p className="muted small" style={{ margin: "6px 0 0" }}>
+              For advertisers to trust their airtime, ads count only while you&apos;re live on Twitch with{" "}
+              <strong>Store past broadcasts</strong> turned on (Twitch → Settings → Stream).
             </p>
             <details className="more">
               <summary>Need a new overlay URL?</summary>
