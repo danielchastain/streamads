@@ -1,6 +1,6 @@
 import { getStreamer } from "@/lib/auth";
 import { FEE_PERCENT } from "@/lib/env";
-import AdPreview from "./ad-preview";
+import SlotDemo from "./slot-demo";
 
 const ICONS = {
   link: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
@@ -150,61 +150,49 @@ export default async function Home() {
       </section>
 
       <section id="control" className="section">
-        <p className="kicker">// you set the rules</p>
-        <h2>Your stream, your prices, your ad sizes</h2>
-        <p className="sub">Every ad slot is yours to design. Nothing about it is fixed by us.</p>
+        <p className="kicker">// create your listing</p>
+        <h2>Create your listing in a minute</h2>
+        <p className="sub">
+          A listing is one ad slot that brands can buy. You build it yourself in your dashboard, and nothing about it is
+          fixed by us. Try it on the right.
+        </p>
         <div className="split control">
           <div className="rules">
             <div className="rule">
-              <b>$</b>
+              <b>1</b>
               <div>
-                <strong>Charge what you want</strong>
-                <p>Set the price for each slot, $5 or $500. Brands pay exactly that, and you keep {100 - FEE_PERCENT}%.</p>
+                <strong>Name it, price it, time it</strong>
+                <p>Call it whatever you like, charge $5 or $500, and choose how many minutes it covers. You keep {100 - FEE_PERCENT}% of what brands pay.</p>
               </div>
             </div>
             <div className="rule">
-              <b>⇔</b>
+              <b>2</b>
               <div>
-                <strong>Control the ad size</strong>
-                <p>Pick a preset or type any size up to a full 1920×1080 screen. Sell a small banner cheap and a big one for more.</p>
+                <strong>Pick the ad size</strong>
+                <p>Choose Small, Medium or Large, or type any size up to a full 1920×1080 screen. Sell a small banner cheap and a big one for more.</p>
               </div>
             </div>
             <div className="rule">
-              <b>◰</b>
+              <b>3</b>
               <div>
-                <strong>Choose where it appears</strong>
-                <p>Any corner, or top or bottom center. You see a live preview on your own stream layout.</p>
+                <strong>Drag it where it goes</strong>
+                <p>Put it in any corner, or top or bottom center, and see a live preview on a to-scale stream screen.</p>
               </div>
             </div>
             <div className="rule">
-              <b>⏱</b>
+              <b>4</b>
               <div>
-                <strong>Decide how long it runs</strong>
-                <p>You choose how many minutes each slot covers. When the minutes are used up, the ad stops.</p>
+                <strong>Brands buy it from your link</strong>
+                <p>Your listing goes on your StreamAds page. When a brand books it, you approve the banner, it plays on stream, and the ad stops when the minutes are used up.</p>
               </div>
             </div>
           </div>
 
-          <div className="slot-mock" aria-hidden="true">
-            <div className="slot-mock-head">
-              <span className="muted small">Your ad slot</span>
-              <span className="pill">example</span>
-            </div>
-            <dl>
-              <div><dt>Name</dt><dd>Corner banner</dd></div>
-              <div><dt>Price</dt><dd className="hl">$25.00</dd></div>
-              <div><dt>Airtime</dt><dd>30 minutes</dd></div>
-              <div><dt>Size</dt><dd>480 × 160 px</dd></div>
-              <div><dt>Position</dt><dd>Bottom left</dd></div>
-            </dl>
-            <div className="chips" style={{ margin: "4px 0 12px" }}>
-              <span className="chip">Small <small>300×100</small></span>
-              <span className="chip on">Medium <small>480×160</small></span>
-              <span className="chip">Large <small>720×240</small></span>
-              <span className="chip">Custom</span>
-            </div>
-            <AdPreview width={480} height={160} position="bottom-left" label="Sponsor" />
-          </div>
+          <SlotDemo
+            feePercent={FEE_PERCENT}
+            ctaHref={streamer ? "/dashboard" : "/sign-up"}
+            ctaLabel={streamer ? "Create your listing in your dashboard" : "Sign up and create your listing"}
+          />
         </div>
       </section>
 
