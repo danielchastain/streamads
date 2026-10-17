@@ -77,13 +77,25 @@ export type Proof = {
 
 function addColumn(db: Database.Database, table: string, column: string, type: string) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-  if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  if (cols.some((c) => c.name === column)) return;
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  } catch (err) {
+    // `next build` starts many workers at once, and each runs this setup against the same file. If another one
+    // added the column between our check and our ALTER, that's fine: it exists, which is all we wanted.
+    if (!/duplicate column name/i.test(String((err as Error).message))) throw err;
+  }
 }
 
 function init(): Database.Database {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  const db = new Database(path.join(DATA_DIR, "streamads.db"));
-  db.pragma("journal_mode = WAL");
+  const db = new Database(path.join(DATA_DIR, "streamads.db"), { timeout: 10_000 }); // wait out other processes' locks
+  try {
+    db.pragma("journal_mode = WAL");
+  } catch {
+    // Another process (e.g. a parallel `next build` worker) is switching the file's mode right now. WAL is a
+    // preference, not a requirement, and whoever wins the race sets it.
+  }
   db.pragma("foreign_keys = ON");
   db.exec(`
     CREATE TABLE IF NOT EXISTS streamers (
@@ -153,4 +165,15 @@ function init(): Database.Database {
 }
 
 const g = globalThis as unknown as { __streamadsDb?: Database.Database };
-export const db: Database.Database = (g.__streamadsDb ??= init());
+const open = () => (g.__streamadsDb ??= init());
+
+// Opened on first use, not when this file loads: `next build` imports every page in many parallel workers, and
+// they would all race to create and migrate the same database file (which once broke a deploy). Nothing here
+// needs the database at build time.
+export const db: Database.Database = new Proxy({} as Database.Database, {
+  get(_target, prop) {
+    const real = open() as unknown as Record<string | symbol, unknown>;
+    const value = real[prop];
+    return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(real) : value;
+  },
+});
