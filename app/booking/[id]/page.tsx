@@ -131,10 +131,18 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {proofs.map((p) => (
                     <li key={p.vod_id} className="small">
-                      <a href={`https://www.twitch.tv/videos/${p.vod_id}?t=${vodTime(p.offset_s)}`} target="_blank" rel="noreferrer noopener">
-                        Stream recording from {vodTime(p.offset_s)}
-                      </a>
-                      <span className="muted"> · {Math.round(p.seconds / 60)} min counted</span>
+                      {p.source === "manual" ? (
+                        <a href={`https://www.twitch.tv/videos/${p.vod_id}`} target="_blank" rel="noreferrer noopener">
+                          Stream recording sent in by the streamer
+                        </a>
+                      ) : (
+                        <>
+                          <a href={`https://www.twitch.tv/videos/${p.vod_id}?t=${vodTime(p.offset_s)}`} target="_blank" rel="noreferrer noopener">
+                            Stream recording from {vodTime(p.offset_s)}
+                          </a>
+                          <span className="muted"> · {Math.round(p.seconds / 60)} min counted</span>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>

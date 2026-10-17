@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { db, type Booking, type Streamer } from "./db";
-import { abs, PAYOUT_HOLD_HOURS, STRIPE_ENABLED } from "./env";
+import { abs, PAYOUT_HOLD_HOURS, STREAM_CHECKS, STRIPE_ENABLED } from "./env";
 
 export const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -71,9 +71,10 @@ export async function settlePayouts(streamerId?: number): Promise<void> {
        WHERE b.status = 'completed' AND (b.payout_status IS NULL OR b.payout_status = 'failed')
          AND s.payouts_enabled = 1 AND s.stripe_account_id IS NOT NULL AND b.payment_intent IS NOT NULL
          AND b.payout_hold = 0 AND (b.completed_at IS NULL OR b.completed_at <= ?)
+         AND (? = 0 OR b.proof_waived = 1 OR EXISTS (SELECT 1 FROM booking_proofs p WHERE p.booking_id = b.id))
          ${streamerId ? "AND b.streamer_id = ?" : ""}`,
     )
-    .all(dueBefore, ...(streamerId ? [streamerId] : [])) as (Booking & { account: string })[];
+    .all(dueBefore, STREAM_CHECKS ? 1 : 0, ...(streamerId ? [streamerId] : [])) as (Booking & { account: string })[];
 
   const stripe = getStripe();
   for (const b of rows) {
@@ -120,11 +121,12 @@ export function maybeSweepPayouts(): void {
 }
 
 /** Short text about where a completed booking's payout stands, for dashboards. */
-export function payoutNote(b: Booking, payoutsEnabled: boolean): string {
+export function payoutNote(b: Booking, payoutsEnabled: boolean, hasProof = true): string {
   if (b.payout_status === "paid") return "paid out";
   if (b.payout_status === "processing") return "paying out…";
   if (b.payout_status === "failed") return "payout failed, will retry";
   if (b.payout_hold) return "payout on hold (under review)";
+  if (STREAM_CHECKS && b.payment_intent && !hasProof && !b.proof_waived) return "needs a VOD link to be paid";
   const releaseAt = (b.completed_at ?? 0) + PAYOUT_HOLD_HOURS * 3_600_000;
   if (releaseAt > Date.now()) {
     return `payout releases ${new Date(releaseAt).toLocaleDateString("en-US", { dateStyle: "medium" })}`;

@@ -101,6 +101,30 @@ export async function checkStream(streamer: Streamer): Promise<StreamCheck> {
   }
 }
 
+export type VideoInfo = { userId: string; type: string; startedAt: number; durationS: number };
+
+/** "3h8m33s" -> seconds. */
+function parseDuration(d: string): number {
+  const m = /^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(d);
+  if (!m) return 0;
+  return Number(m[1] ?? 0) * 86400 + Number(m[2] ?? 0) * 3600 + Number(m[3] ?? 0) * 60 + Number(m[4] ?? 0);
+}
+
+/** Looks up one Twitch video by id (null if it doesn't exist or Twitch can't be asked). */
+export async function getVideo(id: string): Promise<VideoInfo | null> {
+  if (!TWITCH_ENABLED) return null;
+  try {
+    const r = await helix<{ data: { user_id: string; type: string; created_at: string; duration: string }[] }>(
+      `/videos?id=${encodeURIComponent(id)}`,
+    );
+    const v = r.data[0];
+    return v ? { userId: v.user_id, type: v.type, startedAt: Date.parse(v.created_at), durationS: parseDuration(v.duration) } : null;
+  } catch (err) {
+    console.error("Twitch video lookup failed:", err);
+    return null;
+  }
+}
+
 /** Saves the latest check so the dashboard and admin page can show it. */
 export function persistCheck(streamerId: number, c: StreamCheck) {
   if (!c.checked) return;

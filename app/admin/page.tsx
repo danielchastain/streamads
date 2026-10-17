@@ -210,7 +210,7 @@ export default async function Admin() {
                   <td>
                     <span className="pill">{b.status.replace("_", " ")}</span>
                     {b.status === "completed" && (
-                      <div className="muted small">{payoutNote(b, !!b.payouts_enabled)}</div>
+                      <div className="muted small">{payoutNote(b, !!b.payouts_enabled, proofsByBooking.has(b.id))}</div>
                     )}
                   </td>
                   <td>{usd(b.price_cents)}</td>
@@ -218,10 +218,19 @@ export default async function Admin() {
                     {mins(b.seconds_delivered)} / {mins(b.seconds_total)} min
                     {(proofsByBooking.get(b.id) ?? []).slice(0, 3).map((p) => (
                       <div key={p.vod_id} className="small">
-                        <a href={`https://www.twitch.tv/videos/${p.vod_id}?t=${vodTime(p.offset_s)}`} target="_blank" rel="noreferrer noopener">
-                          VOD {vodTime(p.offset_s)}
-                        </a>
-                        <span className="muted"> · {Math.round(p.seconds / 60)} min</span>
+                        {p.source === "manual" ? (
+                          <>
+                            <a href={`https://www.twitch.tv/videos/${p.vod_id}`} target="_blank" rel="noreferrer noopener">VOD</a>
+                            <span className="muted"> · sent by streamer (verified owner)</span>
+                          </>
+                        ) : (
+                          <>
+                            <a href={`https://www.twitch.tv/videos/${p.vod_id}?t=${vodTime(p.offset_s)}`} target="_blank" rel="noreferrer noopener">
+                              VOD {vodTime(p.offset_s)}
+                            </a>
+                            <span className="muted"> · {Math.round(p.seconds / 60)} min</span>
+                          </>
+                        )}
                       </div>
                     ))}
                     {b.status !== "pending_approval" && b.seconds_delivered > 0 && !proofsByBooking.has(b.id) && (

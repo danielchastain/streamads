@@ -64,6 +64,7 @@ export type Booking = {
   completed_at: number | null; // when all minutes were delivered (starts the payout hold)
   payout_hold: number; // 1 = an admin is holding this booking's payout
   last_credited_at: number | null; // last time airtime was counted
+  proof_waived: number; // 1 = an admin released this payout without VOD proof
 };
 
 /** Where in a Twitch VOD a booking's airtime can be checked. */
@@ -73,6 +74,7 @@ export type Proof = {
   offset_s: number; // seconds into the VOD when this booking first aired
   seconds: number; // airtime credited inside this VOD
   last_at: number;
+  source: "auto" | "manual"; // recorded by the overlay checks, or sent in by the streamer and verified with Twitch
 };
 
 function addColumn(db: Database.Database, table: string, column: string, type: string) {
@@ -146,12 +148,14 @@ function init(): Database.Database {
     );
   `);
   // Last Twitch check made while the overlay was running (null = never / not applicable).
+  addColumn(db, "booking_proofs", "source", "TEXT NOT NULL DEFAULT 'auto'");
   addColumn(db, "overlay_state", "tw_live", "INTEGER");
   addColumn(db, "overlay_state", "tw_vod", "INTEGER");
   addColumn(db, "overlay_state", "tw_checked_at", "INTEGER");
   addColumn(db, "bookings", "completed_at", "INTEGER");
   addColumn(db, "bookings", "payout_hold", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "bookings", "last_credited_at", "INTEGER");
+  addColumn(db, "bookings", "proof_waived", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "streamers", "payouts_enabled", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "streamers", "disabled", "INTEGER NOT NULL DEFAULT 0");
   addColumn(db, "bookings", "payment_intent", "TEXT");

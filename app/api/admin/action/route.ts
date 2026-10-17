@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       | { streamer_id: number }
       | undefined;
     if (b) {
-      db.prepare("UPDATE bookings SET payout_hold = 0, completed_at = 0 WHERE id = ?").run(id);
+      db.prepare("UPDATE bookings SET payout_hold = 0, completed_at = 0, proof_waived = 1 WHERE id = ?").run(id);
       await settlePayouts(b.streamer_id).catch((err) => console.error("release payout:", err));
     }
   }

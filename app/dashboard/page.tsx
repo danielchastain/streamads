@@ -23,15 +23,36 @@ function Status({ done }: { done: boolean }) {
   return <span className={`status ${done ? "done" : "todo"}`}>{done ? "Done" : "To do"}</span>;
 }
 
-export default async function Dashboard({ searchParams }: { searchParams: Promise<{ connect?: string; welcome?: string }> }) {
+const PROOF_MSG: Record<string, { ok: boolean; text: string }> = {
+  ok: { ok: true, text: "Thanks, your VOD link was verified and saved. Your payout can now go ahead." },
+  invalid: { ok: false, text: "That doesn't look like a Twitch VOD link. It should look like https://www.twitch.tv/videos/123456789." },
+  notyours: { ok: false, text: "That recording isn't one of your own past broadcasts, so we can't use it." },
+  wrongtime: { ok: false, text: "That recording doesn't cover the time this ad aired. Send the VOD from the stream where it played." },
+  unverified: { ok: false, text: "We couldn't find that recording on Twitch (it may have expired). Check the link and try again." },
+  error: { ok: false, text: "We couldn't save that link. Please try again." },
+};
+
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ connect?: string; welcome?: string; proof?: string }>;
+}) {
   let streamer = await getStreamer();
   if (!streamer) redirect("/");
-  const { connect, welcome } = await searchParams;
+  const { connect, welcome, proof } = await searchParams;
 
   const slots = db.prepare("SELECT * FROM slots WHERE streamer_id = ? AND active = 1 ORDER BY id").all(streamer.id) as Slot[];
   const bookings = db
     .prepare("SELECT * FROM bookings WHERE streamer_id = ? AND status != 'pending_payment' ORDER BY id DESC")
     .all(streamer.id) as Booking[];
+  // Bookings that already have proof they aired (recorded by the overlay, or a verified link you sent).
+  const proofIds = new Set(
+    (
+      db
+        .prepare("SELECT DISTINCT booking_id FROM booking_proofs WHERE booking_id IN (SELECT id FROM bookings WHERE streamer_id = ?)")
+        .all(streamer.id) as { booking_id: number }[]
+    ).map((r) => r.booking_id),
+  );
 
   // Pick up Stripe onboarding completion and retry waiting payouts, only when there's something to do.
   const owedPayout = bookings.some((b) => b.status === "completed" && b.payout_status !== "paid");
@@ -75,7 +96,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <strong>{b.company}</strong>
         <span className="pill">
           {b.status.replace("_", " ")}
-          {b.status === "completed" && ` · ${payoutNote(b, !!streamer.payouts_enabled)}`}
+          {b.status === "completed" && ` · ${payoutNote(b, !!streamer.payouts_enabled, proofIds.has(b.id))}`}
         </span>
       </div>
       <div className="booking-body">
@@ -108,6 +129,25 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <button name="intent" value="reject" className="danger">{b.status === "approved" ? "Stop and reject" : "Reject"}</button>
         </form>
       )}
+      {b.status === "completed" && STREAM_CHECKS && !!b.payment_intent && !proofIds.has(b.id) && !b.proof_waived && b.payout_status !== "paid" && (
+        <form method="post" action="/api/dashboard/proof" style={{ marginTop: 12 }}>
+          <input type="hidden" name="id" value={b.id} />
+          <p className="muted small" style={{ margin: "0 0 6px" }}>
+            To be paid for this ad, send the Twitch VOD link of the stream where it aired. We check it&apos;s your own
+            recording. Twitch deletes VODs after a few days, so send it soon.
+          </p>
+          <div className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+            <input
+              name="url"
+              type="url"
+              required
+              placeholder="https://www.twitch.tv/videos/123456789"
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <button type="submit" className="sm">Send VOD link</button>
+          </div>
+        </form>
+      )}
     </div>
   );
 
@@ -138,6 +178,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </div>
         )}
         {connect && CONNECT_MSG[connect] && <div className="flash">{CONNECT_MSG[connect]}</div>}
+        {proof && PROOF_MSG[proof] && <div className={`flash ${PROOF_MSG[proof].ok ? "ok" : ""}`}>{PROOF_MSG[proof].text}</div>}
 
         <ol className="how">
           <li><b>1</b>Brands open your link and buy a slot</li>
